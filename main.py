@@ -381,7 +381,7 @@ def sum_of_prices(data):
     :param data:
     :return:
     """
-    sum_of_prices_by_warehouse = {}
+    sum_of_prices_of_warehouse = {}
 
     for order in data:
         sum_price = 0
@@ -389,10 +389,10 @@ def sum_of_prices(data):
         for product in order["products"]:
             price = product["price"]
             sum_price += price
-            sum_of_prices_by_warehouse[warehouse_name] = \
-                sum_of_prices_by_warehouse.get(warehouse_name, 0) + price
+            sum_of_prices_of_warehouse[warehouse_name] = \
+                sum_of_prices_of_warehouse.get(warehouse_name, 0) + price
 
-    return sum_of_prices_by_warehouse
+    return sum_of_prices_of_warehouse
 
 
 def sum_of_quantity(data):
@@ -415,39 +415,55 @@ def sum_of_quantity(data):
     return sum_of_quantity_of_warehouse
 
 
-def tariff_price(sum_of_prices_by_warehouse, sum_of_quantity_by_warehouse):
+def tariff_price(sum_of_prices_of_warehouse, sum_of_quantity_of_warehouse):
     """
     Calculate the tariff cost of each "warehouse"
-    :param sum_of_prices_by_warehouse:
-    :param sum_of_quantity_by_warehouse:
+    :param sum_of_prices_of_warehouse:
+    :param sum_of_quantity_of_warehouse:
     :return:
     """
-    tariff_price_every_warehouse = {key: sum_of_prices_by_warehouse[key] / sum_of_quantity_by_warehouse[key]
-                                    for key in sum_of_prices_by_warehouse}
+    tariff_price_every_warehouse = {key: sum_of_prices_of_warehouse[key] / sum_of_quantity_of_warehouse[key]
+                                    for key in sum_of_prices_of_warehouse}
     return tariff_price_every_warehouse
 
 
-def create_table_for_statistic(data, tariffs_of_warehouse):
-    # Create a DataFrame from the provided data
-    df = pd.DataFrame(sum([order["products"] for order in data], []))
+def create_table_for_statistic(data):
+    product_data = []
 
-    # Remove the 'warehouse_name' column before calculating expenses
-    df['expenses'] = df['product'].map(df['product'].map(tariffs_of_warehouse)) * df['quantity']
+    for order in data:
+        order_id = order['order_id']
+        warehouse_name = order['warehouse_name']
+        highway_cost = order['highway_cost']
 
-    # Calculate the income for each product (price * quantity)
-    df['income'] = df['price'] * df['quantity']
+        for product_info in order['products']:
+            product_name = product_info['product']
+            price = product_info['price']
+            quantity = product_info['quantity']
+            income = price * quantity
+            expenses = highway_cost * quantity
+            profit = income - expenses
 
-    # Calculate the total quantity, total income, and total expenses (total price) for each product
-    result = df.groupby('product').agg(
+            product_data.append({
+                'order_id': order_id,
+                'warehouse_name': warehouse_name,
+                'product': product_name,
+                'quantity': quantity,
+                'income': income,
+                'expenses': expenses,
+                'profit': profit
+            })
+
+    product_profit_df = pd.DataFrame(product_data)
+
+    # Group by 'product' and calculate total quantity, income, expenses, and profit for each product
+    product_profit_summary = product_profit_df.groupby('product').agg(
         quantity=('quantity', 'sum'),
         income=('income', 'sum'),
-        expenses=('price', 'sum')
+        expenses=('expenses', 'sum'),
+        profit=('profit', 'sum')
     ).reset_index()
 
-    # Calculate the total profit (total income - total expenses) for each product
-    result['profit'] = result['income'] - result['expenses']
-
-    return result
+    return product_profit_summary
 
 
 def create_order_id_table(data):
@@ -666,14 +682,29 @@ def accumulated_percent_scores(data, tariff_of_warehouse):
 
 sum_of_prices_every_warehouses = sum_of_prices(data=data)
 sum_of_quantity_every_warehouses = sum_of_quantity(data=data)
+print('------------------ TASK 1 ------------------\n')
 sum_of_tariff = tariff_price(sum_of_prices_every_warehouses, sum_of_quantity_every_warehouses)
-create_statistics_tabel = create_table_for_statistic(data, sum_of_tariff)
+print(sum_of_tariff, '\n')
 
+print('------------------ TASK 2 ------------------\n')
+create_statistics_tabel = create_table_for_statistic(data)
+print("Table with columns 'product', 'quantity', 'income', 'expenses', 'profit': ")
+print(create_statistics_tabel, '\n')
+
+print('------------------ TASK 3 ------------------\n')
 order_profit_df, average_profit = create_order_id_table(data)
 print("Table with columns 'order_id' and 'order_profit':")
 print(order_profit_df)
-print("\nAverage profit of orders:", average_profit)
+print("\nAverage profit of orders:", average_profit, '\n')
 
+print('------------------ TASK 4 ------------------\n')
 gain_products = percent_gain_product_of_warehouse(data, sum_of_tariff)
+print(gain_products, '\n')
+
+print('------------------ TASK 5 ------------------\n')
 accumulated_percent = accumulated_percent_product_of_warehouse(data, sum_of_tariff)
+print(accumulated_percent, '\n')
+
+print('------------------ TASK 6 ------------------\n')
 score = accumulated_percent_scores(data, sum_of_tariff)
+print(score, '\n')
